@@ -17,8 +17,13 @@
             min-height: 100vh;
         }
         /* Estilos básicos para campos de data para melhor visualização */
-        input[type="date"]::-webkit-calendar-picker-indicator {
+        input[type="date"]::-webkit-calendar-picker-indicator,
+        input[type="month"]::-webkit-calendar-picker-indicator {
             cursor: pointer;
+        }
+        /* Estilo para garantir que o modal cubra tudo */
+        .modal {
+            background-color: rgba(0, 0, 0, 0.5);
         }
     </style>
 </head>
@@ -119,6 +124,32 @@
         <div id="tab-content-visualizacao" class="tab-content hidden">
             <h2 class="text-xl font-semibold text-gray-800 mb-4">Relatórios Financeiros</h2>
             
+            <!-- Controles de Filtro e Exportação -->
+            <div class="flex flex-col md:flex-row items-end md:items-center space-y-3 md:space-y-0 md:space-x-4 mb-6 p-4 bg-gray-50 border rounded-lg">
+                <div class="flex-grow w-full md:w-auto">
+                    <label for="filter-month-year" class="block text-sm font-medium text-gray-700">Filtrar por Mês e Ano</label>
+                    <!-- O formato é YYYY-MM -->
+                    <input type="month" id="filter-month-year" 
+                           class="mt-1 block w-full md:w-48 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border">
+                </div>
+                
+                <button onclick="applyFilter()" id="filter-button" 
+                        class="w-full md:w-auto py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 transition duration-150 ease-in-out">
+                    Aplicar Filtro
+                </button>
+                <button onclick="resetFilter()" id="reset-button" 
+                        class="w-full md:w-auto py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-150 ease-in-out">
+                    Resetar
+                </button>
+                
+                <!-- Botão de Exportação para CSV (NOVO) -->
+                <button onclick="exportToCSV()" 
+                        class="w-full md:w-auto py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out">
+                    Exportar para CSV
+                </button>
+            </div>
+
+
             <!-- Cards de Relatório -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <!-- Card 1: Total Geral -->
@@ -154,6 +185,7 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-indigo-700 uppercase tracking-wider">Reunião</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-indigo-700 uppercase tracking-wider">Destino</th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-indigo-700 uppercase tracking-wider">Valor (R$)</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-indigo-700 uppercase tracking-wider">Ações</th>
                         </tr>
                     </thead>
                     <tbody id="donativos-body" class="bg-white divide-y divide-gray-200">
@@ -163,6 +195,7 @@
             </div>
             
             <p id="donativos-empty" class="text-center p-8 text-gray-500 hidden">Nenhum donativo encontrado. Comece a lançar dados na aba 'Lançamento'.</p>
+            <p id="donativos-filtered-empty" class="text-center p-8 text-gray-500 hidden">Nenhum donativo encontrado para o filtro selecionado.</p>
         </div>
         
         <!-- Área de Status de Autenticação/Sistema e Mensagens -->
@@ -176,18 +209,120 @@
         </div>
     </div>
 
+    <!-- Modal de Edição -->
+    <div id="edit-modal" class="modal fixed inset-0 z-50 flex items-center justify-center hidden">
+        <div class="bg-white rounded-lg shadow-2xl p-6 w-full max-w-lg transform transition-all duration-300 scale-95 opacity-0" id="edit-modal-content">
+            <h2 class="text-2xl font-bold text-indigo-700 mb-6 border-b pb-2">Editar Donativo</h2>
+            
+            <form id="edit-donativo-form" class="space-y-4">
+                <input type="hidden" id="edit-donativo-id">
+                
+                <!-- Responsável pela Coleta -->
+                <div>
+                    <label for="edit-responsavel" class="block text-sm font-medium text-gray-700">Responsável pela Coleta</label>
+                    <input type="text" id="edit-responsavel" required 
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border">
+                </div>
+
+                <!-- Ajudante da Coleta -->
+                <div>
+                    <label for="edit-ajudante" class="block text-sm font-medium text-gray-700">Ajudante da Coleta</label>
+                    <input type="text" id="edit-ajudante" required 
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <!-- Dia da Reunião -->
+                    <div>
+                        <label for="edit-diaReuniao" class="block text-sm font-medium text-gray-700">Dia da Reunião</label>
+                        <select id="edit-diaReuniao" required 
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border bg-white">
+                            <option value="Quarta-feira">Quarta-feira</option>
+                            <option value="Sábado">Sábado</option>
+                        </select>
+                    </div>
+
+                    <!-- Data da Coleta -->
+                    <div>
+                        <label for="edit-dataColeta" class="block text-sm font-medium text-gray-700">Data da Coleta (Dia do Mês)</label>
+                        <input type="date" id="edit-dataColeta" required 
+                               class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border">
+                    </div>
+                </div>
+                
+                <!-- Valor da Contribuição -->
+                <div>
+                    <label for="edit-valor" class="block text-sm font-medium text-gray-700">Valor da Contribuição (R$)</label>
+                    <input type="number" id="edit-valor" required min="0.01" step="0.01"
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border">
+                </div>
+
+                <!-- Destino da Contribuição -->
+                <div>
+                    <label for="edit-destino" class="block text-sm font-medium text-gray-700">Destino da Contribuição</label>
+                    <select id="edit-destino" required 
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-2 border bg-white">
+                        <option value="Congregação Local">Congregação Local</option>
+                        <option value="Obra Mundial">Obra Mundial</option>
+                    </select>
+                </div>
+
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeEditModal()" class="py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition duration-150">
+                        Cancelar
+                    </button>
+                    <button type="submit" id="save-edit-button" class="py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 transition duration-150">
+                        Salvar Alterações
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- Fim do Modal de Edição -->
+
+
     <!-- Scripts do Firebase -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, setLogLevel, collection, addDoc, serverTimestamp, onSnapshot, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, setLogLevel, collection, addDoc, serverTimestamp, onSnapshot, query, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- INÍCIO: BLOCO DE CONFIGURAÇÃO PARA USO EXTERNO ---
+        // Se você estiver executando este arquivo fora do ambiente Canvas (como no GitHub Pages),
+        // INSIRA SUAS CREDENCIAIS DO FIREBASE AQUI.
+
+        // NOTA: Para este app funcionar fora do Canvas, você precisará:
+        // 1. Criar um projeto no Firebase.
+        // 2. Habilitar o Firestore e a Autenticação Anônima.
+        
+        const localFirebaseConfig = {
+            // Substitua 'SUA_API_KEY' pela sua chave real
+            apiKey: "SUA_API_KEY", 
+            // Substitua 'SEU_AUTH_DOMAIN' pelo seu domínio de autenticação
+            authDomain: "SEU_AUTH_DOMAIN",
+            // Substitua 'SEU_PROJECT_ID' pelo seu ID de projeto
+            projectId: "SEU_PROJECT_ID", 
+            // ... adicione outras chaves se necessário
+        };
+        // Se estiver rodando fora do Canvas, o token e o ID do app serão nulos e a
+        // configuração local será usada.
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' 
+                               ? JSON.parse(__firebase_config) 
+                               : localFirebaseConfig;
+        
+        // --- FIM: BLOCO DE CONFIGURAÇÃO PARA USO EXTERNO ---
+
 
         // Configura o nível de log do Firestore para DEBUG para ajudar na depuração
         setLogLevel('Debug');
 
         let app, db, auth;
         let userId = null;
-        let activeTab = 'lancamento'; // Estado da aba ativa
+        let allDonativos = []; // Armazena todos os donativos brutos
+        let filterDate = null; // Armazena o filtro de mês/ano no formato YYYY-MM
+        let activeTab = 'lancamento'; 
         const COLLECTION_NAME = "donativos";
         
         // Elementos UI
@@ -198,11 +333,22 @@
         const dadosLoadingEl = document.getElementById('dados-loading');
         const donativosTableContainerEl = document.getElementById('donativos-table-container');
         const donativosEmptyEl = document.getElementById('donativos-empty');
+        const donativosFilteredEmptyEl = document.getElementById('donativos-filtered-empty');
         
-        // Novos elementos para os relatórios
+        // Elementos de Relatório
         const totalGeralEl = document.getElementById('total-geral');
         const totalLocalEl = document.getElementById('total-local');
         const totalMundialEl = document.getElementById('total-mundial');
+
+        // Elementos do Filtro
+        const filterMonthYearEl = document.getElementById('filter-month-year');
+        const filterButtonEl = document.getElementById('filter-button');
+        
+        // Elementos do Modal de Edição
+        const editModalEl = document.getElementById('edit-modal');
+        const editModalContentEl = document.getElementById('edit-modal-content');
+        const editFormEl = document.getElementById('edit-donativo-form');
+        const saveEditButtonEl = document.getElementById('save-edit-button');
 
 
         // Funções de UI
@@ -216,13 +362,14 @@
         // Função de utilidade para exibir mensagens na UI
         function showMessage(message, type = 'success') {
             messagesEl.textContent = message;
-            messagesEl.classList.remove('hidden', 'bg-red-100', 'bg-green-100', 'border-red-400', 'border-green-400');
+            messagesEl.classList.remove('hidden', 'bg-red-100', 'bg-green-100', 'border-red-400', 'border-green-400', 'text-red-700', 'text-green-700');
             
             if (type === 'success') {
                 messagesEl.classList.add('bg-green-100', 'border', 'border-green-400', 'text-green-700');
             } else if (type === 'error') {
                 messagesEl.classList.add('bg-red-100', 'border', 'border-red-400', 'text-red-700');
             }
+            messagesEl.classList.remove('hidden');
             
             // Oculta a mensagem após 5 segundos
             setTimeout(() => {
@@ -253,9 +400,148 @@
             });
         };
 
+        // Funções do Modal
+        window.openEditModal = (doc) => {
+            // Preenche o formulário do modal com os dados do donativo
+            document.getElementById('edit-donativo-id').value = doc.id;
+            document.getElementById('edit-responsavel').value = doc.responsavel;
+            document.getElementById('edit-ajudante').value = doc.ajudante;
+            document.getElementById('edit-diaReuniao').value = doc.diaReuniao;
+            document.getElementById('edit-dataColeta').value = doc.dataColeta;
+            document.getElementById('edit-valor').value = doc.valor;
+            document.getElementById('edit-destino').value = doc.destino;
+
+            // Mostra o modal com animação
+            editModalEl.classList.remove('hidden');
+            setTimeout(() => {
+                editModalContentEl.classList.remove('scale-95', 'opacity-0');
+                editModalContentEl.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        };
+
+        window.closeEditModal = () => {
+            // Esconde o modal com animação
+            editModalContentEl.classList.add('scale-95', 'opacity-0');
+            editModalContentEl.classList.remove('scale-100', 'opacity-100');
+            setTimeout(() => {
+                editModalEl.classList.add('hidden');
+            }, 300);
+        };
+
 
         // Funções de Dados (Firebase)
         // ---------------------------------------------------------------------
+        
+        /**
+         * Exporta os donativos visíveis (filtrados ou todos) para um arquivo CSV.
+         */
+        window.exportToCSV = () => {
+            // 1. Filtragem dos Dados 
+            let dataToExport = allDonativos;
+            let fileName = 'donativos_todos';
+
+            if (filterDate) {
+                // Filtra os dados brutos com base no filtro de Mês e Ano ativo (YYYY-MM)
+                dataToExport = allDonativos.filter(doc => doc.dataColeta && doc.dataColeta.startsWith(filterDate));
+                fileName = `donativos_${filterDate.replace('-', '_')}`;
+            }
+
+            if (dataToExport.length === 0) {
+                showMessage('Não há dados para exportar com o filtro atual.', 'error');
+                return;
+            }
+
+            // 2. Define o cabeçalho CSV e as chaves de dados
+            // Usamos o ponto e vírgula (;) como delimitador, comum no Brasil.
+            const headers = ["ID", "Responsável", "Ajudante", "Reunião", "Data Coleta", "Valor", "Destino", "Data Lançamento"];
+            // Mapeamento das chaves do objeto para a ordem do CSV
+            const keys = ["id", "responsavel", "ajudante", "diaReuniao", "dataColeta", "valor", "destino", "createdAt"];
+            
+            let csvContent = headers.join(";") + "\n";
+
+            // 3. Mapeia os dados para linhas CSV
+            dataToExport.forEach(item => {
+                const row = keys.map(key => {
+                    let value = item[key];
+                    
+                    // Tratamento especial para Valor
+                    if (key === 'valor') {
+                        // Formato Brasileiro: usa vírgula como separador decimal e ponto como separador de milhares.
+                        value = (value || 0).toFixed(2).replace('.', ',');
+                    } 
+                    // Tratamento especial para Timestamp
+                    else if (key === 'createdAt' && value && value.toDate) {
+                         // Converte o objeto Timestamp do Firestore para string de data/hora local
+                         value = value.toDate().toLocaleString('pt-BR');
+                    }
+                    // Sanitização de strings: remove aspas duplas, ponto e vírgula e excesso de espaços.
+                    else if (typeof value === 'string') {
+                        value = value.replace(/"/g, '""').replace(/;/g, ',').trim();
+                    }
+                    
+                    // Retorna o valor, entre aspas duplas (padrão CSV para segurança)
+                    return `"${value}"`;
+                });
+                csvContent += row.join(";") + "\n";
+            });
+
+            // 4. Cria e baixa o arquivo CSV
+            // Adiciona BOM (\uFEFF) para garantir que caracteres especiais (como ç, ã) sejam lidos corretamente no Excel
+            const BOM = "\uFEFF";
+            const blobWithBOM = new Blob([BOM, csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+
+            if (link.download !== undefined) { 
+                // Navegadores modernos
+                const url = URL.createObjectURL(blobWithBOM);
+                link.setAttribute("href", url);
+                // Nome do arquivo: donativos_MES_ANO_YYYY-MM-DD.csv
+                link.setAttribute("download", `${fileName}_${new Date().toISOString().slice(0, 10)}.csv`);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                showMessage("Dados exportados com sucesso para CSV!", 'success');
+            } else {
+                showMessage("Seu navegador não suporta download automático. Por favor, copie o conteúdo CSV manualmente.", 'error');
+            }
+        };
+
+        /**
+         * Aplica o filtro de mês/ano selecionado e renderiza os dados.
+         */
+        window.applyFilter = () => {
+            const selectedDate = filterMonthYearEl.value; // Formato YYYY-MM
+            
+            if (selectedDate) {
+                filterDate = selectedDate;
+                filterButtonEl.textContent = `Filtrando: ${selectedDate}`;
+                filterButtonEl.classList.remove('bg-teal-600', 'hover:bg-teal-700');
+                filterButtonEl.classList.add('bg-indigo-600', 'hover:bg-indigo-700');
+                showMessage(`Filtro aplicado para o mês: ${selectedDate}.`, 'success');
+            } else {
+                showMessage("Por favor, selecione um Mês e Ano para aplicar o filtro.", 'error');
+                return;
+            }
+
+            // Re-renderiza a lista com o novo filtro aplicado
+            renderDonativos(allDonativos);
+        };
+        
+        /**
+         * Reseta o filtro de mês/ano e renderiza todos os dados.
+         */
+        window.resetFilter = () => {
+            filterDate = null;
+            filterMonthYearEl.value = '';
+            filterButtonEl.textContent = "Aplicar Filtro";
+            filterButtonEl.classList.add('bg-teal-600', 'hover:bg-teal-700');
+            filterButtonEl.classList.remove('bg-indigo-600', 'hover:bg-indigo-700');
+            
+            // Re-renderiza a lista sem filtro
+            renderDonativos(allDonativos);
+            showMessage("Filtro resetado. Visualizando todos os donativos.", 'success');
+        };
 
         /**
          * Atualiza os cartões de resumo com os totais calculados.
@@ -270,46 +556,136 @@
         }
 
         /**
+         * Retorna o caminho completo de um documento no Firestore.
+         * @param {string} docId - ID do documento.
+         * @returns {string} O caminho do documento.
+         */
+        function getDonativoDocPath(docId) {
+            // O caminho é baseado no APP ID e no User ID (necessário para as regras de segurança)
+            return `/artifacts/${appId}/users/${userId}/${COLLECTION_NAME}/${docId}`;
+        }
+
+        /**
+         * Exclui um donativo do Firestore.
+         * @param {string} docId - ID do documento a ser excluído.
+         */
+        window.deleteDonativo = async (docId) => {
+            // Usando modal customizado para confirmação (preferido em produção)
+            if (!confirm('Tem certeza que deseja EXCLUIR este donativo? Esta ação é irreversível.')) {
+                return;
+            }
+
+            try {
+                const docRef = doc(db, getDonativoDocPath(docId));
+                await deleteDoc(docRef);
+                showMessage("Donativo excluído com sucesso!", 'success');
+            } catch (error) {
+                console.error("ERRO AO EXCLUIR DONATIVO:", error);
+                showMessage(`Erro ao excluir: ${error.message}`, 'error');
+            }
+        };
+
+        /**
+         * Salva as alterações de um donativo.
+         */
+        async function saveEditedDonativo(event) {
+            event.preventDefault();
+            saveEditButtonEl.disabled = true;
+            saveEditButtonEl.textContent = "Salvando...";
+
+            const docId = document.getElementById('edit-donativo-id').value;
+            
+            try {
+                const updatedData = {
+                    responsavel: document.getElementById('edit-responsavel').value,
+                    ajudante: document.getElementById('edit-ajudante').value,
+                    diaReuniao: document.getElementById('edit-diaReuniao').value,
+                    dataColeta: document.getElementById('edit-dataColeta').value,
+                    valor: parseFloat(document.getElementById('edit-valor').value) || 0,
+                    destino: document.getElementById('edit-destino').value,
+                    updatedAt: serverTimestamp() // Adiciona timestamp de atualização
+                };
+
+                const docRef = doc(db, getDonativoDocPath(docId));
+                await updateDoc(docRef, updatedData);
+                
+                showMessage("Donativo atualizado com sucesso!", 'success');
+                closeEditModal();
+
+            } catch (error) {
+                console.error("ERRO AO SALVAR EDIÇÃO:", error);
+                showMessage(`Erro ao salvar edição: ${error.message}`, 'error');
+            } finally {
+                saveEditButtonEl.disabled = false;
+                saveEditButtonEl.textContent = "Salvar Alterações";
+            }
+        }
+
+
+        /**
          * Renderiza a lista de donativos na tabela e calcula os relatórios.
          * @param {Array<Object>} donativos - Array de donativos com a chave 'id'.
          */
         function renderDonativos(donativos) {
+            
+            // 1. Filtragem (em memória)
+            let filteredDonativos = donativos;
+            if (filterDate) {
+                // filterDate é YYYY-MM
+                filteredDonativos = donativos.filter(doc => doc.dataColeta && doc.dataColeta.startsWith(filterDate));
+            }
+
+            // 2. Cálculo dos Totais
             let totalGeral = 0;
             let totalLocal = 0;
             let totalMundial = 0;
 
-            donativosBodyEl.innerHTML = ''; // Limpa a tabela
-            
-            if (donativos.length === 0) {
-                // Se não houver dados, reseta os cartões
-                updateReportCards(0, 0, 0); 
-
-                donativosTableContainerEl.classList.add('hidden');
-                donativosEmptyEl.classList.remove('hidden');
-                dadosLoadingEl.classList.add('hidden');
-                return;
-            }
-
-            // Ordena os donativos pela data (do mais recente para o mais antigo)
-            donativos.sort((a, b) => new Date(b.dataColeta) - new Date(a.dataColeta));
-            
-            donativos.forEach(doc => {
-                const valor = doc.valor || 0; // Garante que o valor é um número (fallback 0)
-                
-                // 1. Agregação dos Totais
+            filteredDonativos.forEach(doc => {
+                const valor = doc.valor || 0;
                 totalGeral += valor;
                 if (doc.destino === 'Congregação Local') {
                     totalLocal += valor;
                 } else if (doc.destino === 'Obra Mundial') {
                     totalMundial += valor;
                 }
+            });
 
-                // 2. Renderização da Tabela
+            // 3. Atualiza os Cartões de Relatório
+            updateReportCards(totalGeral, totalLocal, totalMundial);
+
+            // 4. Renderização da Tabela
+            donativosBodyEl.innerHTML = ''; // Limpa a tabela
+            
+            // Visibilidade da tabela e mensagens
+            dadosLoadingEl.classList.add('hidden');
+            donativosFilteredEmptyEl.classList.add('hidden');
+            donativosEmptyEl.classList.add('hidden');
+
+            if (donativos.length === 0) {
+                donativosTableContainerEl.classList.add('hidden');
+                donativosEmptyEl.classList.remove('hidden');
+                return;
+            }
+
+            if (filteredDonativos.length === 0) {
+                donativosTableContainerEl.classList.add('hidden');
+                donativosFilteredEmptyEl.classList.remove('hidden');
+                return;
+            }
+
+            // Ordena os donativos pela data (do mais recente para o mais antigo)
+            filteredDonativos.sort((a, b) => new Date(b.dataColeta) - new Date(a.dataColeta));
+            
+            filteredDonativos.forEach(doc => {
+                const valor = doc.valor || 0;
                 const dataFormatada = new Date(doc.dataColeta + 'T00:00:00').toLocaleDateString('pt-BR');
                 const valorFormatado = formatCurrency(valor);
                 
                 const newRow = document.createElement('tr');
                 newRow.classList.add('hover:bg-indigo-50', 'transition', 'duration-100');
+                
+                // Os dados do donativo são stringificados para serem passados para a função openEditModal
+                const donativoJson = JSON.stringify(doc).replace(/'/g, "\\'"); // Escapa aspas simples
                 
                 newRow.innerHTML = `
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${dataFormatada}</td>
@@ -317,16 +693,21 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${doc.diaReuniao}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${doc.destino}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-right text-indigo-800">${valorFormatado}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick='openEditModal(${donativoJson})' 
+                            class="text-indigo-600 hover:text-indigo-900 mr-3 p-1 rounded hover:bg-indigo-100 transition duration-150">
+                            Editar
+                        </button>
+                        <button onclick="deleteDonativo('${doc.id}')" 
+                            class="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-100 transition duration-150">
+                            Excluir
+                        </button>
+                    </td>
                 `;
                 donativosBodyEl.appendChild(newRow);
             });
 
-            // 3. Atualiza os Cartões de Relatório
-            updateReportCards(totalGeral, totalLocal, totalMundial);
-
-            dadosLoadingEl.classList.add('hidden');
             donativosTableContainerEl.classList.remove('hidden');
-            donativosEmptyEl.classList.add('hidden');
         }
 
         /**
@@ -338,25 +719,25 @@
                 return;
             }
 
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             const collectionPath = `/artifacts/${appId}/users/${userId}/${COLLECTION_NAME}`;
             
             // Cria a query da coleção
             const donativosQuery = query(collection(db, collectionPath));
 
-            // Configura o onSnapshot
+            // Configura o onSnapshot (escuta todos os dados)
             onSnapshot(donativosQuery, (snapshot) => {
                 const donativos = [];
                 snapshot.forEach(doc => {
-                    // Mapeia o documento para incluir o ID
                     donativos.push({
                         id: doc.id,
+                        // Copia todos os campos do documento.
                         ...doc.data()
                     });
                 });
                 
-                console.log(`Dados atualizados: ${donativos.length} donativos.`);
-                renderDonativos(donativos); // Chama a função de processamento/renderização
+                console.log(`Dados brutos carregados: ${donativos.length} donativos.`);
+                allDonativos = donativos; // Armazena todos os dados brutos
+                renderDonativos(allDonativos); // Renderiza com base no filtro atual
             }, (error) => {
                 console.error("Erro ao obter donativos em tempo real:", error);
                 showMessage(`Erro ao carregar lista de donativos: ${error.message}`, 'error');
@@ -367,7 +748,7 @@
 
 
         /**
-         * Salva os dados do formulário no Firestore.
+         * Salva os dados do formulário de Novo Donativo no Firestore.
          */
         async function salvarDonativo(event) {
             event.preventDefault();
@@ -387,7 +768,6 @@
                     ajudante: document.getElementById('ajudante').value,
                     diaReuniao: document.getElementById('diaReuniao').value,
                     dataColeta: document.getElementById('dataColeta').value, // Formato YYYY-MM-DD
-                    // IMPORTANT: Sempre converte para float (número) antes de salvar
                     valor: parseFloat(document.getElementById('valor').value) || 0, 
                     destino: document.getElementById('destino').value,
                     
@@ -396,12 +776,8 @@
                     createdAt: serverTimestamp() 
                 };
 
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-                
-                // Define o caminho da coleção privada
                 const collectionPath = `/artifacts/${appId}/users/${userId}/${COLLECTION_NAME}`;
                 
-                // Adiciona o novo documento à coleção
                 await addDoc(collection(db, collectionPath), donativoData);
                 
                 showMessage("Donativo salvo com sucesso! Veja os relatórios e a lista atualizada na aba 'Visualização'.", 'success');
@@ -431,6 +807,7 @@
                     if (token) {
                         return await signInWithCustomToken(auth, token);
                     } else {
+                        // Faz login anônimo. Necessário habilitar Autenticação Anônima no Firebase.
                         return await signInAnonymously(auth);
                     }
                 } catch (error) {
@@ -449,13 +826,12 @@
          */
         async function initializeFirebaseAndAuth() {
             try {
-                // 1. Configurações Globais (MANDATÓRIO)
-                const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-                const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-                if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
-                    // Exibe a tela de erro se a configuração estiver faltando (comum no GitHub)
-                    throw new Error("Configuração do Firebase não encontrada ou vazia. Por favor, forneça sua configuração para rodar fora do Canvas.");
+                // 1. Verifica Configurações 
+                if (!firebaseConfig || Object.keys(firebaseConfig).length === 0 || firebaseConfig.apiKey === "SUA_API_KEY") {
+                    // O erro só será disparado se não estiver rodando no Canvas (onde a config é garantida)
+                    if (typeof __firebase_config === 'undefined') {
+                        throw new Error("Configuração do Firebase não encontrada ou vazia. Por favor, forneça sua configuração para rodar fora do Canvas.");
+                    }
                 }
 
                 // 2. Inicializa App e Serviços
@@ -481,6 +857,7 @@
                             
                             // 5. Configura Listeners de Eventos e de Dados APÓS o carregamento da APP
                             formEl.addEventListener('submit', salvarDonativo);
+                            editFormEl.addEventListener('submit', saveEditedDonativo);
                             setupDonativosListener(); // INICIA O LISTENER DE DADOS
                             setActiveTab('lancamento'); // Define a aba inicial
                         }, 300); 
@@ -494,7 +871,8 @@
                     await signInWithBackoff(auth, initialAuthToken);
                 } else {
                     console.log("Token de autenticação não disponível. Tentando login anônimo...");
-                    await signInWithBackoff(auth, null); // Faz login anônimo
+                    // Nota: signInWithBackoff(auth, null) faz o login anônimo se o token for null.
+                    await signInWithBackoff(auth, null); 
                 }
 
             } catch (error) {
