@@ -35,16 +35,15 @@
     </div>
 
     <!-- Bibliotecas Firebase e PDF -->
-    <!-- jsPDF e autoTable carregados globalmente -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, collection, onSnapshot, query, addDoc, serverTimestamp, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // As bibliotecas de PDF (jsPDF e autoTable) já estão carregadas como scripts globais antes deste módulo.
+        // Carrega bibliotecas de PDF no escopo global para o JS puro
+        // A barra em '</script>' deve ser escapada (<\/script>) para evitar SyntaxError no parser HTML/JS.
+        document.head.innerHTML += '<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>';
+        document.head.innerHTML += '<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"><\/script>';
 
         // --- VARIÁVEIS GLOBAIS DE ESTADO ---
         let db, auth;
@@ -55,7 +54,7 @@
         let deleteCandidate = { id: null, collectionName: null }; // Para o Modal de Confirmação
         let exportMessageTimeout;
 
-        // Variáveis de Ambiente (do Canvas)
+        // Variáveis de Ambiente (do Canvas - NÃO ALTERAR ESTAS LINHAS)
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -113,6 +112,23 @@
         // --- FIREBASE INIT E LISTENERS ---
 
         const initFirebase = async () => {
+            // VERIFICAÇÃO CRÍTICA DE CONFIGURAÇÃO
+            if (Object.keys(firebaseConfig).length === 0) {
+                const appDiv = document.getElementById('app');
+                appDiv.innerHTML = `
+                    <div class="flex items-center justify-center min-h-screen">
+                        <div class="p-8 text-center bg-white rounded-xl shadow-lg m-auto max-w-xl">
+                            <h2 class="text-2xl font-bold text-red-600 mb-4">ERRO: Configuração do Firebase Ausente</h2>
+                            <p class="text-gray-700">O sistema depende de uma configuração válida do Firebase (que é injetada automaticamente no ambiente Canvas).</p>
+                            <p class="mt-3 text-sm text-gray-500">Se você estiver rodando este código fora do Canvas (ex: GitHub), você deve substituir o <code>{}</code> na variável <code>firebaseConfig</code> (linha ~45) pela sua própria configuração real do Firebase para a aplicação funcionar.</p>
+                            <a href="https://firebase.google.com/" target="_blank" class="mt-4 inline-block text-indigo-600 hover:text-indigo-800 font-medium">Saiba mais sobre o Firebase</a>
+                        </div>
+                    </div>
+                `;
+                console.error("ERRO CRÍTICO: Configuração do Firebase está vazia. A aplicação não pode inicializar o Firebase. Por favor, forneça uma configuração válida se estiver fora do ambiente Canvas.");
+                return; // Interrompe a execução para evitar a falha de initializeApp
+            }
+
             try {
                 const app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
@@ -769,6 +785,7 @@
                 return;
             }
 
+            // window.jsPDF é acessível globalmente após o carregamento dinâmico
             const doc = new window.jsPDF({ orientation: 'landscape' });
             const exportData = mapToExportData(data, type);
             const report = calculateReportData();
