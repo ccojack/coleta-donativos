@@ -112,9 +112,9 @@
         // --- FIREBASE INIT E LISTENERS ---
 
         const initFirebase = async () => {
+            const appDiv = document.getElementById('app');
             // VERIFICAÇÃO CRÍTICA DE CONFIGURAÇÃO
             if (Object.keys(firebaseConfig).length === 0) {
-                const appDiv = document.getElementById('app');
                 appDiv.innerHTML = `
                     <div class="flex items-center justify-center min-h-screen">
                         <div class="p-8 text-center bg-white rounded-xl shadow-lg m-auto max-w-xl">
@@ -125,7 +125,7 @@
                         </div>
                     </div>
                 `;
-                console.error("ERRO CRÍTICO: Configuração do Firebase está vazia. A aplicação não pode inicializar o Firebase. Por favor, forneça uma configuração válida se estiver fora do ambiente Canvas.");
+                console.error("ERRO CRÍTICO: Configuração do Firebase está vazia.");
                 return; // Interrompe a execução para evitar a falha de initializeApp
             }
 
@@ -151,7 +151,12 @@
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         userId = user.uid;
-                        setupFirestoreListeners();
+                        // Chama setupFirestoreListeners SOMENTE se o 'db' foi inicializado com sucesso
+                        if (db) {
+                            setupFirestoreListeners();
+                        } else {
+                            console.warn("DB não está inicializado, não configurando listeners.");
+                        }
                     } else {
                         authenticate();
                     }
@@ -161,8 +166,16 @@
                 authenticate();
 
             } catch (error) {
-                console.error("Erro na inicialização do Firebase:", error);
-                document.getElementById('app').innerHTML = `<div class="p-8 text-center text-red-600">Erro ao iniciar Firebase. Verifique a configuração no console.</div>`;
+                console.error("Erro CRÍTICO na inicialização do Firebase:", error);
+                appDiv.innerHTML = `
+                    <div class="flex items-center justify-center min-h-screen">
+                        <div class="p-8 text-center bg-white rounded-xl shadow-lg m-auto max-w-xl">
+                            <h2 class="text-2xl font-bold text-red-600 mb-4">Erro ao iniciar Firebase.</h2>
+                            <p class="text-gray-700">Ocorreu uma falha na inicialização do serviço. Verifique o **Console do Desenvolvedor** (F12) para detalhes.</p>
+                            <p class="text-sm text-gray-500 mt-3">Você pode tentar recarregar a página (Preview) ou verificar se há problemas de rede.</p>
+                        </div>
+                    </div>
+                `;
             }
         };
 
@@ -589,6 +602,12 @@
         const handleColetaSubmit = async (e) => {
             e.preventDefault();
             
+            // Verifica se o DB está disponível
+            if (!db || !userId) {
+                handleFormMessage('coleta-message', 'Erro: O sistema de banco de dados não está conectado. Recarregue.', true);
+                return;
+            }
+
             const btn = document.getElementById('coleta-submit-btn');
             btn.disabled = true;
             btn.innerHTML = '<svg class="w-5 h-5 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 0020 12c0-4.418-3.582-8-8-8v5z"></path></svg> Aguarde...';
@@ -632,6 +651,12 @@
 
         const handleNotaFiscalSubmit = async (e) => {
             e.preventDefault();
+
+            // Verifica se o DB está disponível
+            if (!db || !userId) {
+                handleFormMessage('nf-message', 'Erro: O sistema de banco de dados não está conectado. Recarregue.', true);
+                return;
+            }
             
             const btn = document.getElementById('nf-submit-btn');
             btn.disabled = true;
@@ -691,7 +716,7 @@
             handleCancelDelete(); // Fecha o modal
 
             if (!db || !userId || !id || !collectionName) {
-                showExportMessage("Erro: Dados insuficientes para exclusão.", 'error');
+                showExportMessage("Erro: Dados insuficientes para exclusão. O sistema de banco de dados não está conectado.", 'error');
                 return;
             }
             
