@@ -283,7 +283,7 @@
 
     <!-- Scripts do Firebase -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { initializeApp } from "firebase/app";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, setLogLevel, collection, addDoc, serverTimestamp, onSnapshot, query, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
@@ -295,17 +295,22 @@
         // 1. Criar um projeto no Firebase.
         // 2. Habilitar o Firestore e a Autenticação Anônima.
         
-        const localFirebaseConfig = {
+        const FirebaseConfig = {
             // Substitua 'SUA_API_KEY' pela sua chave real
-            apiKey: "SUA_API_KEY", 
+            apiKey: "AIzaSyBO7wylBwnoVHvuzd0KTK8yHP2WTdnDsXs", 
             // Substitua 'SEU_AUTH_DOMAIN' pelo seu domínio de autenticação
-            authDomain: "SEU_AUTH_DOMAIN",
+            authDomain: "coleta-donativos.firebaseapp.com",
             // Substitua 'SEU_PROJECT_ID' pelo seu ID de projeto
-            projectId: "SEU_PROJECT_ID", 
+            projectId: "coleta-donativos", 
             // ... adicione outras chaves se necessário
+            storageBucket: "coleta-donativos.firebasestorage.app",
+            messagingSenderId: "506104504495",
+            appId: "1:506104504495:web:0a398b93099f2894f0345a",
+            measurementId: "G-QF8XP8FRN1"
         };
         // Se estiver rodando fora do Canvas, o token e o ID do app serão nulos e a
         // configuração local será usada.
+        const app = initializeApp(firebaseConfig);
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' 
@@ -893,3 +898,4 @@
     </script>
 </body>
 </html>
+
